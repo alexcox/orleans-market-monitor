@@ -1,4 +1,6 @@
+using MarketDataClient;
 using MarketMonitor.Grains;
+using MarketMonitor.Host;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +16,10 @@ builder.Services.AddOrleans(sb =>
     sb.UseDashboard(o => o.HostSelf = true);
 });
 
+builder.Services.AddMarketDataClient(o => o with { SubscriptionCount = 10 });
+
+builder.Services.AddHostedService<MarketDataProducerService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -25,5 +31,11 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.Map("/dashboard", b => b.UseOrleansDashboard());
+
+app.MapGet("/quotes/{id}", (string id, IGrainFactory grainFactory, CancellationToken cancellationToken) =>
+{
+    var grain = grainFactory.GetGrain<IMarketDataConsumerGrain>(id);
+    return TypedResults.ServerSentEvents(grain.Subscribe(), eventType: "quote");
+});
 
 app.Run();
